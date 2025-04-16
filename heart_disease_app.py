@@ -1,81 +1,96 @@
-# heart_disease_app.py
-
 import streamlit as st
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-# Title
-st.title("Tar Joel💓Heart Disease Prediction App")
+st.set_page_config(page_title="Heart Disease Prediction App", layout="centered")
 
-# Load dataset
+# Load Data
 @st.cache_data
 def load_data():
     return pd.read_csv("heart.csv")
 
 data = load_data()
-st.subheader("Sample of Dataset")
-st.write(data.head())
 
-# Feature and target separation
-X = data.drop("target", axis=1)
-y = data["target"]
+# Sidebar Navigation
+st.sidebar.title("🩺 Navigation")
+page = st.sidebar.radio("Go to", ["About App", "Prediction", "Dataset"])
 
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# ---------- About Section ----------
+if page == "About App":
+    st.title("💓 Heart Disease Prediction App")
+    st.markdown("""
+    This app uses machine learning to predict whether a person is at risk of heart disease based on health inputs.  
+    **Technologies:** Streamlit, Scikit-learn, Pandas, Random Forest  
+    **Created by:** You 😎  
+    """)
+    st.info("Navigate using the sidebar to try a prediction or view the dataset.")
 
-# Model training
-model = RandomForestClassifier()
-model.fit(X_train, y_train)
+# ---------- Dataset Section ----------
+elif page == "Dataset":
+    st.title("📊 Heart Disease Dataset")
+    with st.expander("Show full dataset"):
+        st.dataframe(data)
 
-# Prediction form
-st.sidebar.header("Patient Input Features")
+    st.markdown("### Dataset Overview")
+    st.write(data.describe())
 
-def user_input_features():
-    age = st.sidebar.slider('Age', 29, 77, 50)
-    sex = st.sidebar.selectbox('Sex (0 = Female, 1 = Male)', [0, 1])
-    cp = st.sidebar.slider('Chest Pain Type (0-3)', 0, 3, 1)
-    trestbps = st.sidebar.slider('Resting Blood Pressure', 90, 200, 120)
-    chol = st.sidebar.slider('Cholesterol (mg/dl)', 100, 600, 200)
-    fbs = st.sidebar.selectbox('Fasting Blood Sugar > 120 mg/dl (1 = true; 0 = false)', [0, 1])
-    restecg = st.sidebar.slider('Resting ECG (0-2)', 0, 2, 1)
-    thalach = st.sidebar.slider('Max Heart Rate Achieved', 60, 210, 150)
-    exang = st.sidebar.selectbox('Exercise Induced Angina (1 = yes; 0 = no)', [0, 1])
-    oldpeak = st.sidebar.slider('ST depression induced by exercise', 0.0, 6.2, 1.0)
-    slope = st.sidebar.slider('Slope of peak exercise ST segment (0-2)', 0, 2, 1)
-    ca = st.sidebar.slider('Major vessels colored by fluoroscopy (0-4)', 0, 4, 0)
-    thal = st.sidebar.slider('Thalassemia (1 = normal; 2 = fixed defect; 3 = reversible defect)', 0, 3, 1)
+# ---------- Prediction Section ----------
+elif page == "Prediction":
+    st.title("🧠 Heart Disease Predictor")
 
-    return pd.DataFrame({
-        'age': [age], 'sex': [sex], 'cp': [cp], 'trestbps': [trestbps],
-        'chol': [chol], 'fbs': [fbs], 'restecg': [restecg], 'thalach': [thalach],
-        'exang': [exang], 'oldpeak': [oldpeak], 'slope': [slope], 'ca': [ca], 'thal': [thal]
-    })
+    # Layout input fields using columns
+    with st.expander("Enter Patient Health Data"):
+        col1, col2, col3 = st.columns(3)
 
-input_df = user_input_features()
-st.subheader("Patient Input")
-st.write(input_df)
+        with col1:
+            age = st.slider("Age", 29, 77, 45)
+            sex = st.selectbox("Sex (0=Female, 1=Male)", [0, 1])
+            cp = st.selectbox("Chest Pain Type (0–3)", [0, 1, 2, 3])
+            fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl (1 = True)", [0, 1])
+            restecg = st.selectbox("Resting ECG", [0, 1])
 
-# Prediction
-prediction = model.predict(input_df)
-prediction_proba = model.predict_proba(input_df)
+        with col2:
+            trestbps = st.slider("Resting Blood Pressure", 94, 200, 120)
+            chol = st.slider("Cholesterol", 126, 564, 200)
+            thalach = st.slider("Max Heart Rate Achieved", 71, 202, 150)
+            exang = st.selectbox("Exercise-Induced Angina", [0, 1])
+            oldpeak = st.slider("ST depression (Oldpeak)", 0.0, 6.2, 1.0)
 
-st.subheader("Prediction Result")
-st.write("🟢 **Heart Disease Detected**" if prediction[0] == 1 else "🟡 **No Heart Disease Detected**")
-st.write("Prediction Probability:", prediction_proba)
+        with col3:
+            slope = st.selectbox("Slope of ST segment", [0, 1, 2])
+            ca = st.slider("Number of vessels colored by fluoroscopy", 0, 4, 0)
+            thal = st.selectbox("Thalassemia (0–2)", [0, 1, 2])
 
-# Model Evaluation
-st.subheader("Model Evaluation on Test Set")
-y_pred = model.predict(X_test)
+    # Model input
+    input_data = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs, restecg,
+                                thalach, exang, oldpeak, slope, ca, thal]],
+                              columns=['age', 'sex', 'cp', 'trestbps', 'chol', 'fbs',
+                                       'restecg', 'thalach', 'exang', 'oldpeak',
+                                       'slope', 'ca', 'thal'])
 
-st.write("Confusion Matrix:")
-cm = confusion_matrix(y_test, y_pred)
-fig, ax = plt.subplots()
-sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
-st.pyplot(fig)
+    # Train model
+    X = data.drop("target", axis=1)
+    y = data["target"]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
 
-st.write("Classification Report:")
-st.text(classification_report(y_test, y_pred))
+    # Predict
+    if st.button("🔍 Predict"):
+        prediction = model.predict(input_data)[0]
+        pred_prob = model.predict_proba(input_data)[0][prediction]
+
+        st.subheader("Prediction Result")
+
+        if prediction == 1:
+            st.error("🚨 **Risk Detected!** The patient might be at risk of heart disease.")
+            st.markdown(f"**Prediction Confidence:** {pred_prob:.2%}")
+            st.markdown("⚠️ Consider consulting a doctor for further tests.")
+        else:
+            st.success("✅ **No Risk Detected.** The patient is likely healthy.")
+            st.markdown(f"**Prediction Confidence:** {pred_prob:.2%}")
+            st.markdown("😃 Keep maintaining a healthy lifestyle!")
+
+    st.sidebar.markdown("### Model Accuracy")
+    st.sidebar.info(f"{model.score(X_test, y_test) * 100:.2f}%")
