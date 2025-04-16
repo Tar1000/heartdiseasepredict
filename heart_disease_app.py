@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Title
-st.title("💓 Heart Disease Prediction App")
+st.title("Tar Joel💓Heart Disease Prediction App")
 
 # Load dataset
 @st.cache_data
