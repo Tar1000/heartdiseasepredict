@@ -13,7 +13,7 @@ This is a simple machine learning web app built with Streamlit to predict the pr
 ```bash
 git clone https://github.com/Tar1000/heartdiseasepredict.git
 cd heartdiseasepredict
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+python -m venv heartvenv
+source venv/bin/activate  # On Windows: .\heartvenv\Scripts\activate
 pip install -r requirements.txt
 
