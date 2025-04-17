@@ -1,96 +1,149 @@
 import streamlit as st
 import pandas as pd
-from sklearn.model_selection import train_test_split
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import seaborn as sns
+import matplotlib.pyplot as plt
+from fpdf import FPDF
+from datetime import datetime
+import io
 
-st.set_page_config(page_title="Heart Disease Prediction App", layout="centered")
+st.set_page_config(page_title="Joel Demo Heart Disease Predictor", layout="wide")
 
-# Load Data
+# Caching the model and data
 @st.cache_data
 def load_data():
-    return pd.read_csv("heart.csv")
+    data = pd.read_csv("heart.csv")
+    return data
 
-data = load_data()
+@st.cache_resource
+def train_model():
+    df = load_data()
+    X = df.drop('target', axis=1)
+    y = df['target']
+    model = RandomForestClassifier()
+    model.fit(X, y)
+    return model, X.columns.tolist()
+
+# Create PDF report
+def create_pdf(result_df, user_name="User"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    # Title
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="Demo Heart Disease Prediction Report", ln=True, align="C")
+    pdf.ln(10)
+
+    # Name and Date
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt=f"Name: {user_name}", ln=True)
+    pdf.cell(200, 10, txt=f"Date: {datetime.now().strftime('%B %d, %Y')}", ln=True)
+    pdf.ln(10)
+
+    for col in result_df.columns:
+        pdf.cell(200, 10, txt=f"{col}: {result_df[col].values[0]}", ln=True)
+
+    return pdf.output(dest='S').encode('latin1')
+
+
+# Load model
+model, feature_names = train_model()
 
 # Sidebar Navigation
-st.sidebar.title("🩺 Navigation")
-page = st.sidebar.radio("Go to", ["About App", "Prediction", "Dataset"])
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["About", "Prediction", "Dataset", "Visualizations"])
 
-# ---------- About Section ----------
-if page == "About App":
-    st.title("💓 Heart Disease Prediction App")
-    st.markdown("""
-    This app uses machine learning to predict whether a person is at risk of heart disease based on health inputs.  
-    **Technologies:** Streamlit, Scikit-learn, Pandas, Random Forest  
-    **Created by:** You 😎  
+# About Page
+if page == "About":
+    st.title("Joel Demo 💓Heart Disease Prediction App")
+    st.write("""
+    This app uses machine learning to predict the likelihood of heart disease based on user input.  
+    ✅ Built with Streamlit and RandomForestClassifier  
+    🔐 **Disclaimer**: This tool is not a substitute for professional medical advice.  
+    🚫 No personal data is stored or shared.  
     """)
-    st.info("Navigate using the sidebar to try a prediction or view the dataset.")
 
-# ---------- Dataset Section ----------
-elif page == "Dataset":
-    st.title("📊 Heart Disease Dataset")
-    with st.expander("Show full dataset"):
-        st.dataframe(data)
-
-    st.markdown("### Dataset Overview")
-    st.write(data.describe())
-
-# ---------- Prediction Section ----------
+# Prediction Page
 elif page == "Prediction":
-    st.title("🧠 Heart Disease Predictor")
+    st.title("🩺 Predict Heart Disease Risk")
+    user_name = st.text_input("Enter your name", "Anonymous")
 
-    # Layout input fields using columns
-    with st.expander("Enter Patient Health Data"):
+    with st.form("input_form"):
         col1, col2, col3 = st.columns(3)
-
         with col1:
-            age = st.slider("Age", 29, 77, 45)
-            sex = st.selectbox("Sex (0=Female, 1=Male)", [0, 1])
-            cp = st.selectbox("Chest Pain Type (0–3)", [0, 1, 2, 3])
-            fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl (1 = True)", [0, 1])
-            restecg = st.selectbox("Resting ECG", [0, 1])
-
+            age = st.number_input("Age", min_value=1, max_value=120, key="age")
+            sex = st.selectbox("Sex", [0, 1], format_func=lambda x: "Female" if x == 0 else "Male", key="sex")
+            cp = st.selectbox("Chest Pain Type (0-3)", [0, 1, 2, 3], key="cp")
+            trestbps = st.number_input("Resting Blood Pressure", min_value=80, max_value=200, key="trestbps")
         with col2:
-            trestbps = st.slider("Resting Blood Pressure", 94, 200, 120)
-            chol = st.slider("Cholesterol", 126, 564, 200)
-            thalach = st.slider("Max Heart Rate Achieved", 71, 202, 150)
-            exang = st.selectbox("Exercise-Induced Angina", [0, 1])
-            oldpeak = st.slider("ST depression (Oldpeak)", 0.0, 6.2, 1.0)
-
+            chol = st.number_input("Serum Cholesterol (mg/dl)", min_value=100, max_value=600, key="chol")
+            fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [0, 1], key="fbs")
+            restecg = st.selectbox("Rest ECG (0-2)", [0, 1, 2], key="restecg")
+            thalach = st.number_input("Max Heart Rate Achieved", min_value=60, max_value=220, key="thalach")
         with col3:
-            slope = st.selectbox("Slope of ST segment", [0, 1, 2])
-            ca = st.slider("Number of vessels colored by fluoroscopy", 0, 4, 0)
-            thal = st.selectbox("Thalassemia (0–2)", [0, 1, 2])
+            exang = st.selectbox("Exercise Induced Angina", [0, 1], key="exang")
+            oldpeak = st.number_input("ST Depression", min_value=0.0, max_value=10.0, step=0.1, key="oldpeak")
+            slope = st.selectbox("Slope of ST", [0, 1, 2], key="slope")
+            ca = st.selectbox("Number of Major Vessels (0-3)", [0, 1, 2, 3], key="ca")
+            thal = st.selectbox("Thalassemia (0=normal, 1=fixed defect, 2=reversible)", [0, 1, 2], key="thal")
 
-    # Model input
-    input_data = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs, restecg,
-                                thalach, exang, oldpeak, slope, ca, thal]],
-                              columns=['age', 'sex', 'cp', 'trestbps', 'chol', 'fbs',
-                                       'restecg', 'thalach', 'exang', 'oldpeak',
-                                       'slope', 'ca', 'thal'])
+        submitted = st.form_submit_button("Predict")
 
-    # Train model
-    X = data.drop("target", axis=1)
-    y = data["target"]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    model = RandomForestClassifier()
-    model.fit(X_train, y_train)
+    if submitted:
+        input_data = pd.DataFrame([[age, sex, cp, trestbps, chol, fbs, restecg, thalach,
+                                    exang, oldpeak, slope, ca, thal]],
+                                  columns=feature_names)
 
-    # Predict
-    if st.button("🔍 Predict"):
         prediction = model.predict(input_data)[0]
-        pred_prob = model.predict_proba(input_data)[0][prediction]
+        prob = model.predict_proba(input_data)[0][prediction] * 100
 
-        st.subheader("Prediction Result")
+        emoji = "✅" if prediction == 0 else "⚠️"
+        message = "No Heart Disease Detected." if prediction == 0 else "Risk of Heart Disease Detected!"
 
-        if prediction == 1:
-            st.error("🚨 **Risk Detected!** The patient might be at risk of heart disease.")
-            st.markdown(f"**Prediction Confidence:** {pred_prob:.2%}")
-            st.markdown("⚠️ Consider consulting a doctor for further tests.")
+        st.markdown(f"### {emoji} {message}")
+        st.progress(prob / 100)
+        st.write(f"**Confidence Level**: {prob:.2f}%")
+
+        # Result DataFrame for export
+        result_df = input_data.copy()
+        result_df["Prediction"] = message
+        result_df["Confidence"] = f"{prob:.2f}%"
+
+        # Download PDF
+        pdf_bytes = create_pdf(result_df, user_name)
+        st.download_button("📄 Download PDF Report", data=pdf_bytes, file_name="heart_report.pdf", mime='application/pdf')
+
+# Dataset Page
+elif page == "Dataset":
+    st.title("📁 Heart Dataset")
+    data = load_data()
+    st.dataframe(data)
+    st.write("### Target Variable Distribution")
+    st.bar_chart(data['target'].value_counts())
+
+# Visualization Page
+elif page == "Visualizations":
+    st.title("📊 Data Visualizations")
+    df = load_data()
+
+    st.subheader("Feature Distributions")
+    selected = st.multiselect("Choose features to visualize", df.columns[:-1], default=['age', 'sex', 'cp'])
+
+    for feature in selected:
+        st.write(f"**Distribution of {feature}**")
+        fig, ax = plt.subplots()
+        if df[feature].nunique() <= 10:
+            df[feature].value_counts().plot.pie(autopct='%1.1f%%', ax=ax)
+            ax.set_ylabel('')
         else:
-            st.success("✅ **No Risk Detected.** The patient is likely healthy.")
-            st.markdown(f"**Prediction Confidence:** {pred_prob:.2%}")
-            st.markdown("😃 Keep maintaining a healthy lifestyle!")
+            sns.histplot(df[feature], kde=True, ax=ax)
+        st.pyplot(fig)
 
-    st.sidebar.markdown("### Model Accuracy")
-    st.sidebar.info(f"{model.score(X_test, y_test) * 100:.2f}%")
+    st.subheader("Correlation Heatmap")
+    fig2, ax2 = plt.subplots(figsize=(10, 6))
+    sns.heatmap(df.corr(), annot=True, cmap="coolwarm", ax=ax2)
+    st.pyplot(fig2)
